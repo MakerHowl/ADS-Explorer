@@ -1,0 +1,241 @@
+<Window x:Class="TwinCatVariableExplorer.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:converters="clr-namespace:TwinCatVariableExplorer.Converters"
+        xmlns:viewModels="clr-namespace:TwinCatVariableExplorer.ViewModels"
+        mc:Ignorable="d"
+        Title="TwinCAT ADS Variable Explorer" 
+        Height="720" Width="1200"
+        MinHeight="450" MinWidth="850"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <converters:BoolToBrushConverter x:Key="BoolToBrushConverter" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
+
+        <Style x:Key="EditableValueStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#0D6EFD" />
+            <Setter Property="Padding" Value="4,2" />
+        </Style>
+
+        <Style x:Key="ErrorMessageStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#DC3545" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /> <!-- Toolbar -->
+            <RowDefinition Height="Auto" /> <!-- Filter bar -->
+            <RowDefinition Height="*" />    <!-- DataGrid -->
+            <RowDefinition Height="Auto" /> <!-- StatusBar -->
+        </Grid.RowDefinitions>
+
+        <!-- 1. Obere Toolbar (Verbindung & Steuerung) -->
+        <Border Grid.Row="0" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,0,0,1" Padding="10,8">
+            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- AmsNetId -->
+                <TextBlock Text="AmsNetId:" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="SemiBold" />
+                <TextBox Text="{Binding AmsNetId, UpdateSourceTrigger=PropertyChanged}" 
+                         Width="140" Margin="0,0,12,0" VerticalAlignment="Center" Padding="4,2" />
+
+                <!-- Port -->
+                <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="SemiBold" />
+                <TextBox Text="{Binding AmsPort, UpdateSourceTrigger=PropertyChanged}" 
+                         Width="70" Margin="0,0,14,0" VerticalAlignment="Center" Padding="4,2" />
+
+                <!-- Verbinden / Trennen Button -->
+                <Button Command="{Binding ToggleConnectionCommand}" 
+                        Content="{Binding ConnectButtonText}" 
+                        Width="90" Height="28" Margin="0,0,10,0" FontWeight="SemiBold" />
+
+                <!-- Symbole neu laden Button -->
+                <Button Command="{Binding ReloadSymbolsCommand}" 
+                        Content="Symbole neu laden" 
+                        Padding="10,4" Height="28" Margin="0,0,10,0" />
+
+                <!-- Werte einmalig lesen Button -->
+                <Button Command="{Binding ReadAllVisibleValuesCommand}" 
+                        Content="Werte einmalig lesen" 
+                        Padding="10,4" Height="28" Margin="0,0,10,0" />
+
+                <!-- Als JSON exportieren Button -->
+                <Button Command="{Binding OpenExportJsonDialogCommand}" 
+                        Content="Als JSON exportieren..." 
+                        Padding="10,4" Height="28" Margin="0,0,16,0" 
+                        IsEnabled="{Binding IsConnected}" />
+
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="0,0,16,0" />
+
+                <!-- Auto-Update On-Change CheckBox -->
+                <CheckBox IsChecked="{Binding IsGlobalOnChangeEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                          Content="Auto-Update (On-Change) aktivieren" 
+                          VerticalAlignment="Center" 
+                          FontWeight="Bold" 
+                          Foreground="#0F5132" />
+            </WrapPanel>
+        </Border>
+
+        <!-- 2. Such- und Filterleiste -->
+        <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="#E9ECEF" BorderThickness="0,0,0,1" Padding="10,6">
+            <DockPanel LastChildFill="True">
+                <!-- Item Count Summary -->
+                <TextBlock DockPanel.Dock="Right" 
+                           Text="{Binding ItemCountSummary}" 
+                           VerticalAlignment="Center" 
+                           Foreground="#6C757D" 
+                           FontWeight="Medium" 
+                           Margin="12,0,0,0" />
+
+                <!-- Filter Eingabefeld -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Filter:" VerticalAlignment="Center" Margin="0,0,6,0" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" 
+                             Width="320" 
+                             Padding="4,2" 
+                             ToolTip="Filtert case-insensitiv nach Symbolpfad, Name, Datentyp oder Kommentar" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- 3. Hauptbereich (DataGrid) -->
+        <DataGrid Grid.Row="2" 
+                  ItemsSource="{Binding VariablesView}" 
+                  SelectedItem="{Binding SelectedVariable, Mode=TwoWay}"
+                  AutoGenerateColumns="False" 
+                  CanUserAddRows="False" 
+                  CanUserDeleteRows="False"
+                  EnableRowVirtualization="True" 
+                  EnableColumnVirtualization="True" 
+                  VirtualizingPanel.IsVirtualizing="True" 
+                  VirtualizingPanel.VirtualizationMode="Recycling"
+                  GridLinesVisibility="Horizontal"
+                  AlternatingRowBackground="#F9FAFB"
+                  RowHeaderWidth="25"
+                  SelectionMode="Extended">
+            <DataGrid.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Als JSON exportieren..." 
+                              Command="{Binding OpenExportJsonDialogCommand}" 
+                              FontWeight="SemiBold" />
+                    <MenuItem Header="Schnellexport als JSON..." 
+                              Command="{Binding QuickExportSelectedSymbolJsonCommand}" />
+                </ContextMenu>
+            </DataGrid.ContextMenu>
+            <DataGrid.Columns>
+                <!-- 1. On-Change (DataGridCheckBoxColumn) -->
+                <DataGridCheckBoxColumn Header="Auto (On-Change)" 
+                                        Binding="{Binding IsOnChangeActive, UpdateSourceTrigger=PropertyChanged}" 
+                                        Width="110" />
+
+                <!-- 2. Pfad (DataGridTextColumn) -->
+                <DataGridTextColumn Header="Symbolpfad" 
+                                    Binding="{Binding InstancePath}" 
+                                    IsReadOnly="True" 
+                                    Width="220" />
+
+                <!-- 3. Name (DataGridTextColumn) -->
+                <DataGridTextColumn Header="Name" 
+                                    Binding="{Binding SymbolName}" 
+                                    IsReadOnly="True" 
+                                    Width="130" />
+
+                <!-- 4. Datentyp (DataGridTextColumn) -->
+                <DataGridTextColumn Header="Datentyp" 
+                                    Binding="{Binding DataTypeName}" 
+                                    IsReadOnly="True" 
+                                    Width="110" />
+
+                <!-- 5. Kategorie (DataGridTextColumn) -->
+                <DataGridTextColumn Header="Kategorie" 
+                                    Binding="{Binding Category}" 
+                                    IsReadOnly="True" 
+                                    Width="95" />
+
+                <!-- 6. Größe (DataGridTextColumn) -->
+                <DataGridTextColumn Header="Größe (Byte)" 
+                                    Binding="{Binding ByteSize}" 
+                                    IsReadOnly="True" 
+                                    Width="85" />
+
+                <!-- 7. Wert (DataGridTextColumn, editierbar) -->
+                <DataGridTextColumn Header="Wert (Editierbar)" 
+                                    Binding="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" 
+                                    IsReadOnly="False" 
+                                    ElementStyle="{StaticResource EditableValueStyle}"
+                                    Width="140" />
+
+                <!-- 8. Letztes Update (DataGridTextColumn) -->
+                <DataGridTextColumn Header="Zeitstempel" 
+                                    Binding="{Binding LastUpdated, StringFormat='{}{0:HH:mm:ss.fff}'}" 
+                                    IsReadOnly="True" 
+                                    Width="110" />
+
+                <!-- 9. Kommentar (DataGridTextColumn) -->
+                <DataGridTextColumn Header="Kommentar" 
+                                    Binding="{Binding Comment}" 
+                                    IsReadOnly="True" 
+                                    Width="180" />
+
+                <!-- 10. Attribute (DataGridTextColumn) -->
+                <DataGridTextColumn Header="Attribute" 
+                                    Binding="{Binding AttributesSummary}" 
+                                    IsReadOnly="True" 
+                                    Width="140" />
+
+                <!-- 11. Fehler (DataGridTextColumn) -->
+                <DataGridTextColumn Header="Status / Fehler" 
+                                    Binding="{Binding ErrorMessage}" 
+                                    IsReadOnly="True" 
+                                    ElementStyle="{StaticResource ErrorMessageStyle}"
+                                    Width="200*" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- 4. Statusleiste (StatusBar unten) -->
+        <StatusBar Grid.Row="3" Background="#F1F3F5" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Padding="8,4">
+            <StatusBar.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                    </Grid>
+                </ItemsPanelTemplate>
+            </StatusBar.ItemsPanel>
+
+            <StatusBarItem Grid.Column="0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Visueller Verbindungsindikator -->
+                    <Ellipse Width="12" Height="12" 
+                             Fill="{Binding IsConnected, Converter={StaticResource BoolToBrushConverter}}" 
+                             Stroke="#B0B0B0" StrokeThickness="0.5" 
+                             Margin="0,0,8,0" 
+                             ToolTip="{Binding StatusText}" />
+                </StackPanel>
+            </StatusBarItem>
+
+            <StatusBarItem Grid.Column="1">
+                <TextBlock Text="{Binding StatusText}" 
+                           VerticalAlignment="Center" 
+                           Foreground="#212529" 
+                           TextTrimming="CharacterEllipsis" />
+            </StatusBarItem>
+
+            <StatusBarItem Grid.Column="2">
+                <ProgressBar Width="120" Height="14" 
+                             IsIndeterminate="True" 
+                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisConverter}}" 
+                             Margin="8,0,0,0" />
+            </StatusBarItem>
+        </StatusBar>
+    </Grid>
+</Window>
